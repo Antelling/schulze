@@ -1,0 +1,175 @@
+<!doctype html>
+<html>
+<head>
+    <title>Condorcet</title>
+    <meta charset="utf-8">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="sortable.min.js"></script>
+
+    <style>
+        .button {
+            cursor: pointer;
+            background-color: #22dcff;
+            border-radius: 5px;
+            border: 1px solid black;
+            padding: 5px;
+            margin: 5px;
+        }
+    </style>
+</head>
+
+<body>
+<div id="option-specification">
+    <input type="text" id="options" placeholder="type your options">
+    <span id="done" class="button">done</span>
+
+</div>
+
+<div id="option-ranking">
+    <ol id="list"></ol>
+
+    <span id="next" class="button">Next Person</span>
+    <span id="finish" class="button">Finish</span>
+</div>
+
+<script>
+    $("#option-ranking").hide();
+
+    var options = [];
+
+    function prepareDraggable() {
+        $("#list").html(options);
+        var list = document.getElementById("list");
+        Sortable.create(list); // That's all.
+    }
+
+    $("#done").click(function () {
+        options = $("#options").val().split(/ /g);
+
+        $("#option-specification").hide();
+
+        options = options.map(function (option) {
+            return "<li class='button'>" + option + "</li>"
+        });
+
+        prepareDraggable();
+
+        $("#option-ranking").show();
+    });
+
+    votes = [];
+
+    $("#next").click(function () {
+        vote = $("#list")
+            .html()
+            .replace(/<.+?>/g, "|") //replace <li blah blah blah> or </li> with |
+            .slice(1, -1) //get rid of the single | at the front and back
+            .split("||"); //split where the <li..></li> used to be
+        votes.push(vote);
+        prepareDraggable();
+    });
+
+    function floydWarshall(strength_matrix, options) {
+        var strongest_paths = {};
+        options.forEach(function (option1) {
+            strongest_paths[option1] = {};
+            options.forEach(function (option2) {
+                if (!(option2 === option1)) {
+                    strongest_paths[option1][option2] = 0
+                }
+            });
+        });
+
+        options.forEach(function(option1){
+            options.forEach(function(option2){
+                if (!(option1 === option2)){
+                    if (strength_matrix[option1][option2] > strength_matrix[option2][option1]){
+                        strongest_paths[option1][option2] = strength_matrix[option1][option2]
+                    }
+                }
+            })
+        });
+
+        options.forEach(function(option1){
+            options.forEach(function(option2){
+                if (!(option1 === option2)){
+                    options.forEach(function(option3){
+                        if (!(option1 === option3) && !(option2 === option3)){
+                            var curr_val = strength_matrix[option2][option3];
+                            var new_val = Math.min(
+                                strength_matrix[option2][option1],
+                                strength_matrix[option1][option3]
+                            );
+                            if (new_val > curr_val){
+                                strongest_paths[option2][option3] = new_val
+                            }
+                        }
+                    })
+                }
+            })
+        });
+
+        return strongest_paths
+    }
+
+    function calculateWinner(votes) {
+        var strength_matrix = {};
+        var options = votes[0];
+        options.forEach(function (option1) {
+            strength_matrix[option1] = {};
+            options.forEach(function (option2) {
+                if (!(option2 === option1)) {
+                    strength_matrix[option1][option2] = 0
+                }
+            });
+        });
+        votes.forEach(function(vote){
+            vote.forEach(function(option1, index1){
+                vote.forEach(function(option2, index2){
+                    if (index2 > index1){ //option2 is lower in the list than option1
+                        strength_matrix[option1][option2]++;
+                    }
+                })
+            })
+        });
+
+        strength_matrix = floydWarshall(strength_matrix, options);
+
+        console.log(strength_matrix);
+
+        var option_wins = [];
+        options.forEach(function(option){
+            option_wins[option] = 0
+        });
+
+        options.forEach(function(option1){
+            options.forEach(function(option2){
+                if (!(option1 === option2)) {
+                    if(strength_matrix[option1][option2] > strength_matrix[option2][option1]){
+                        option_wins[option1]++;
+                    }
+                }
+            })
+        });
+
+        var winner = "";
+        var best_score = 0;
+        options.forEach(function(option){
+            if(option_wins[option] > best_score){
+                best_score = option_wins[option];
+                winner = option;
+            }
+        });
+
+        return winner
+    }
+
+
+    $("#finish").click(function () {
+        $("#next").click();
+        $("#option-ranking").hide();
+        alert(JSON.stringify(calculateWinner(votes)));
+    })
+</script>
+</body>
+</html>
